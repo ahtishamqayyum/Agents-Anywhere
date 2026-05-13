@@ -12,6 +12,7 @@ import { citationValidityPercent } from "@/lib/audit-trust-score";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const bodySchema = z.object({
   sessionId: z.string().uuid(),

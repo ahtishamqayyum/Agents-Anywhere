@@ -1,7 +1,7 @@
 import { mkdir } from "fs/promises";
 import path from "path";
 
-const ROOT = process.cwd();
+const ROOT = process.env.VERCEL ? "/tmp" : process.cwd();
 
 export function dataDir(): string {
   return path.join(ROOT, "data");

@@ -8,6 +8,7 @@ import { humanizeOutboundError } from "@/lib/network-errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const bodySchema = z.object({
   repoUrl: z.string().url().max(2048),
