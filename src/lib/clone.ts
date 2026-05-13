@@ -1,13 +1,12 @@
 import { existsSync } from "fs";
-import { mkdir, readdir, rm } from "fs/promises";
-import { Readable } from "stream";
-import { pipeline } from "stream/promises";
-import { x as tarExtract } from "tar";
+import { mkdir, readdir, rm, writeFile } from "fs/promises";
+import path from "path";
+import { extract as tarExtract } from "tar";
 import type { ParsedRepo } from "./github-url";
-import { repoDir } from "./paths";
+import { repoDir, dataDir } from "./paths";
 import { assertPublicRepoOnGitHub } from "./github-repo-check";
 
-const CLONE_TIMEOUT_MS = 120_000;
+const CLONE_TIMEOUT_MS = 90_000;
 
 export async function ensureRepoCloned(
   sessionId: string,
@@ -19,12 +18,11 @@ export async function ensureRepoCloned(
       const entries = await readdir(dest);
       if (entries.length > 0) return dest;
     } catch {
-      /* fall through to re-download */
+      /* fall through */
     }
   }
 
   await assertPublicRepoOnGitHub(parsed.owner, parsed.repo);
-
   await mkdir(dest, { recursive: true });
 
   const ac = new AbortController();
@@ -33,6 +31,8 @@ export async function ensureRepoCloned(
     parsed.owner
   )}/${encodeURIComponent(parsed.repo)}/tarball`;
 
+  const tmpTar = path.join(dataDir(), `${sessionId}.tar.gz`);
+
   try {
     const res = await fetch(tarballUrl, {
       headers: {
@@ -40,34 +40,36 @@ export async function ensureRepoCloned(
         "User-Agent": "CodebaseInvestigator/1.0",
       },
       signal: ac.signal,
-      cache: "no-store",
       redirect: "follow",
     });
 
     if (res.status === 404) {
-      throw new Error(
-        "Repository not found, or it is private. Use a public GitHub URL."
-      );
+      throw new Error("Repository not found, or it is private.");
     }
-    if (!res.ok || !res.body) {
-      throw new Error(
-        `GitHub tarball download failed: HTTP ${res.status} ${res.statusText}`
-      );
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText}`);
     }
 
-    const nodeStream = Readable.fromWeb(res.body as never);
-    await pipeline(nodeStream, tarExtract({ cwd: dest, strip: 1 }));
+    const buf = Buffer.from(await res.arrayBuffer());
+    await writeFile(tmpTar, buf);
+    await tarExtract({ file: tmpTar, cwd: dest, strip: 1 });
   } catch (err) {
     try {
       await rm(dest, { recursive: true, force: true });
     } catch {
-      /* ignore cleanup errors */
+      /* ignore */
     }
-    const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-    console.error("[clone:v3] tarball failed:", raw, err);
-    throw new Error(`[v3] Clone failed: ${raw.slice(0, 400)}`);
+    const raw =
+      err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    console.error("[clone:v4] failed:", raw);
+    throw new Error(`[v4] Clone failed: ${raw.slice(0, 400)}`);
   } finally {
     clearTimeout(timer);
+    try {
+      await rm(tmpTar, { force: true });
+    } catch {
+      /* ignore */
+    }
   }
 
   return dest;
