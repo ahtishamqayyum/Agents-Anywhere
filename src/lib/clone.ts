@@ -5,10 +5,7 @@ import { pipeline } from "stream/promises";
 import { x as tarExtract } from "tar";
 import type { ParsedRepo } from "./github-url";
 import { repoDir } from "./paths";
-import {
-  assertPublicRepoOnGitHub,
-  friendlyCloneError,
-} from "./github-repo-check";
+import { assertPublicRepoOnGitHub } from "./github-repo-check";
 
 const CLONE_TIMEOUT_MS = 120_000;
 
@@ -67,13 +64,8 @@ export async function ensureRepoCloned(
       /* ignore cleanup errors */
     }
     const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-    console.error("[clone] tarball failed:", raw, err);
-    const friendly = friendlyCloneError(err);
-    const generic = "Clone failed. Confirm the repo is public, the URL is correct, and try again.";
-    if (friendly === generic) {
-      throw new Error(`Clone failed: ${raw.slice(0, 300)}`);
-    }
-    throw new Error(friendly);
+    console.error("[clone:v3] tarball failed:", raw, err);
+    throw new Error(`[v3] Clone failed: ${raw.slice(0, 400)}`);
   } finally {
     clearTimeout(timer);
   }
