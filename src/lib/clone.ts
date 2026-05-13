@@ -66,7 +66,14 @@ export async function ensureRepoCloned(
     } catch {
       /* ignore cleanup errors */
     }
-    throw new Error(friendlyCloneError(err));
+    const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    console.error("[clone] tarball failed:", raw, err);
+    const friendly = friendlyCloneError(err);
+    const generic = "Clone failed. Confirm the repo is public, the URL is correct, and try again.";
+    if (friendly === generic) {
+      throw new Error(`Clone failed: ${raw.slice(0, 300)}`);
+    }
+    throw new Error(friendly);
   } finally {
     clearTimeout(timer);
   }
